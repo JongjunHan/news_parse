@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>네이버 뉴스 RAG 챗봇</title>
+    <style>
+        :root {
+            --bg-primary: #0f0f0f;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #252525;
+            --bg-hover: #2a2a2a;
+            --text-primary: #e8e8e8;
+            --text-secondary: #a0a0a0;
+            --text-muted: #6b6b6b;
+            --accent: #7c3aed;
+            --accent-hover: #6d28d9;
+            --accent-light: #8b5cf6;
+            --border: #2a2a2a;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 100%;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            flex-shrink: 0;
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .header p {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* Status Bar */
+        .status-bar {
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+        }
+
+        .status-label {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .status-value {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .status-badge {
+            background: var(--accent);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Main Content */
+        .main-content {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            flex: 1;
+            min-height: 0; /* flex 아이템에서 overflow 작동을 위해 필수 */
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 3px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: var(--bg-hover);
+        }
+
+        .sidebar-section {
+            margin-bottom: 28px;
+        }
+
+        .sidebar-section h3 {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 10px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+            margin-bottom: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
+
+        .btn-danger {
+            background: transparent;
+            color: var(--danger);
+            border: 1px solid var(--danger);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        .cache-list {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 12px;
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .cache-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .cache-list::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+        }
+
+        .cache-list::-webkit-scrollbar-thumb {
+            background: var(--bg-hover);
+            border-radius: 2px;
+        }
+
+        .cache-item {
+            padding: 8px 10px;
+            margin: 4px 0;
+            border-left: 2px solid var(--border);
+            font-size: 13px;
+            color: var(--text-secondary);
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .cache-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .cache-item.active {
+            background: rgba(124, 58, 237, 0.15);
+            border-left-color: var(--accent);
+            color: var(--accent-light);
+            font-weight: 500;
+        }
+
+        .cache-empty {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            padding: 16px;
+        }
+
+        /* Chat Area */
+        .chat-area {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0; /* flex 아이템에서 overflow 작동을 위해 필수 */
+            background: var(--bg-primary);
+            overflow: hidden; /* 전체 영역의 overflow 제어 */
+        }
+
+        .messages {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto; /* 스크롤바 자동 표시 */
+            overflow-x: hidden; /* 가로 스크롤 숨김 */
+            scroll-behavior: smooth; /* 부드러운 스크롤 */
+            min-height: 0; /* flex 아이템에서 overflow 작동을 위해 필수 */
+            height: 100%; /* 명확한 높이 제한 */
+        }
+
+        .messages::-webkit-scrollbar {
+            width: 12px; /* 스크롤바 너비 */
+        }
+
+        .messages::-webkit-scrollbar-track {
+            background: var(--bg-secondary);
+            border-radius: 6px;
+            margin: 4px;
+        }
+
+        .messages::-webkit-scrollbar-thumb {
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            border: 3px solid var(--bg-secondary);
+        }
+
+        .messages::-webkit-scrollbar-thumb:hover {
+            background: var(--bg-hover);
+        }
+
+        .messages::-webkit-scrollbar-thumb:active {
+            background: var(--accent);
+        }
+
+        .message {
+            margin-bottom: 16px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .message.bot {
+            display: flex;
+            justify-content: flex-start;
+        }
+
+        .message.system {
+            display: flex;
+            justify-content: center;
+        }
+
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 12px;
+            max-width: 70%;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+
+        .message.user .message-content {
+            background: var(--accent);
+            color: white;
+        }
+
+        .message.bot .message-content {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .message.system .message-content {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            font-size: 13px;
+            max-width: 80%;
+        }
+
+        /* Input Area */
+        .input-area {
+            border-top: 1px solid var(--border);
+            padding: 20px 24px;
+            background: var(--bg-secondary);
+            flex-shrink: 0;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 12px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: var(--accent);
+            background: var(--bg-primary);
+        }
+
+        .input-group input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .input-group button {
+            padding: 12px 24px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .input-group button:hover:not(:disabled) {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .input-group button:disabled {
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 8px;
+            color: var(--accent-light);
+            font-size: 13px;
+            margin-top: 8px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            animation: fadeIn 0.2s;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 28px;
+            border-radius: 12px;
+            max-width: 480px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .modal-content label {
+            display: block;
+            margin-top: 16px;
+            margin-bottom: 6px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .modal-content input,
+        .modal-content select {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .modal-content input:focus,
+        .modal-content select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .modal-content input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Number input 스타일 */
+        .modal-content input[type="number"] {
+            -moz-appearance: textfield; /* Firefox에서 spinner 제거 */
+        }
+
+        .modal-content input[type="number"]::-webkit-inner-spin-button,
+        .modal-content input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .history-item {
+            background: var(--bg-tertiary);
+            padding: 14px;
+            margin: 12px 0;
+            border-radius: 6px;
+            border-left: 3px solid var(--accent);
+        }
+
+        .history-item strong {
+            color: var(--accent-light);
+            font-size: 13px;
+        }
+
+        .history-item p {
+            color: var(--text-secondary);
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
+        .history-empty {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 32px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>네이버 뉴스 RAG 챗봇</h1>
+            <p>뉴스 기반 AI 대화형 어시스턴트</p>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-label">현재 주제</span>
+                <span class="status-value" id="current-topic">없음</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">대화</span>
+                <span class="status-badge" id="chat-count">0</span>
+            </div>
+            <div class="status-item">
+                <span class="status-label">캐시</span>
+                <span class="status-badge" id="cache-count">0</span>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-section">
+                    <h3>주제 관리</h3>
+                    <button class="btn btn-primary" onclick="openSearchModal()">새 주제 검색</button>
+                    <button class="btn btn-secondary" onclick="loadCache()">캐시 새로고침</button>
+
+                    <div class="cache-list" id="cache-list">
+                        <p class="cache-empty">캐시된 주제가 없습니다</p>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>LLM 모델 설정</h3>
+                    <select id="llm-model" class="btn btn-secondary" style="padding: 8px; text-align: left; width: 100%;" onchange="changeLLMModel()">
+                        <option value="gpt-4o-mini" selected>GPT-4o Mini (빠름)</option>
+                        <option value="gpt-4o">GPT-4o (고품질)</option>
+                        <option value="gpt-3.5-turbo">GPT-3.5 Turbo (저렴)</option>
+                        <option value="gpt-4-turbo">GPT-4 Turbo (균형)</option>
+                    </select>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px; padding: 0 4px;">
+                        현재: <span id="current-model">gpt-4o-mini</span>
+                    </div>
+                </div>
+
+                <div class="sidebar-section">
+                    <h3>대화 관리</h3>
+                    <button class="btn btn-secondary" onclick="showHistory()">히스토리 보기</button>
+                    <button class="btn btn-secondary" onclick="clearHistory()">히스토리 초기화</button>
+                    <button class="btn btn-danger" onclick="clearAllCache()">전체 캐시 삭제</button>
+                </div>
+            </div>
+
+            <!-- Chat Area -->
+            <div class="chat-area">
+                <div class="messages" id="messages">
+                    <div class="message system">
+                        <div class="message-content">
+                            왼쪽의 "새 주제 검색" 버튼을 눌러 뉴스 주제를 선택하고 대화를 시작하세요.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="input-area">
+                    <div class="input-group">
+                        <input type="text" id="user-input" placeholder="질문을 입력하세요..."
+                               onkeypress="handleKeyPress(event)" disabled>
+                        <button onclick="sendMessage()" id="send-btn" disabled>전송</button>
+                    </div>
+                    <div class="loading" id="loading">답변 생성 중...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 검색 모달 -->
+    <div class="modal" id="search-modal">
+        <div class="modal-content">
+            <h2>새 주제 검색</h2>
+            <label>검색 쿼리 (여러 주제는 쉼표로 구분)</label>
+            <input type="text" id="search-query" placeholder="예: AI 기술, LLM, 생성형 AI">
+
+            <label>뉴스 개수 (1~200개)</label>
+            <input type="number" id="num-links" min="1" max="200" value="100" placeholder="100">
+
+            <label>정렬 방식</label>
+            <select id="sort-type">
+                <option value="date" selected>최신순 (권장)</option>
+                <option value="sim">유사도순</option>
+            </select>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeSearchModal()">취소</button>
+                <button class="btn btn-primary" onclick="buildVectorDB()">검색 시작</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 히스토리 모달 -->
+    <div class="modal" id="history-modal">
+        <div class="modal-content">
+            <h2>대화 히스토리</h2>
+            <div id="history-content"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeHistoryModal()">닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 페이지 로드 시 상태 확인
+        window.onload = function() {
+            loadStatus();
+            loadCache();
+            // 페이지 로드 시 스크롤 하단으로 이동
+            scrollToBottom();
+        };
+
+        function loadStatus() {
+            fetch('/api/status')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('current-topic').textContent = data.current_query || '없음';
+                        document.getElementById('chat-count').textContent = data.history_count;
+                        document.getElementById('cache-count').textContent = data.cached_queries.length;
+
+                        if (data.has_db) {
+                            document.getElementById('user-input').disabled = false;
+                            document.getElementById('send-btn').disabled = false;
+                        }
+                    }
+                });
+        }
+
+        function loadCache() {
+            fetch('/api/cache')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const cacheList = document.getElementById('cache-list');
+                        if (data.queries.length === 0) {
+                            cacheList.innerHTML = '<p class="cache-empty">캐시된 주제가 없습니다</p>';
+                        } else {
+                            cacheList.innerHTML = data.queries.map(q =>
+                                `<div class="cache-item ${q === data.current ? 'active' : ''}">${q}</div>`
+                            ).join('');
+                        }
+                        document.getElementById('cache-count').textContent = data.queries.length;
+                    }
+                });
+        }
+
+        function openSearchModal() {
+            document.getElementById('search-modal').classList.add('active');
+        }
+
+        function closeSearchModal() {
+            document.getElementById('search-modal').classList.remove('active');
+        }
+
+        function buildVectorDB() {
+            const queryInput = document.getElementById('search-query').value.trim();
+            const numLinks = parseInt(document.getElementById('num-links').value);
+            const sortType = document.getElementById('sort-type').value;
+
+            if (!queryInput) {
+                alert('검색 쿼리를 입력하세요.');
+                return;
+            }
+
+            // 뉴스 개수 유효성 검사
+            if (isNaN(numLinks) || numLinks < 1 || numLinks > 200) {
+                alert('뉴스 개수는 1~200 사이의 숫자를 입력하세요.');
+                return;
+            }
+
+            // 쉼표로 구분된 여러 주제를 배열로 변환
+            const queries = queryInput.split(',').map(q => q.trim()).filter(q => q.length > 0);
+
+            if (queries.length === 0) {
+                alert('검색 쿼리를 입력하세요.');
+                return;
+            }
+
+            // 단일 쿼리면 문자열, 여러 개면 배열로 전송
+            const query = queries.length === 1 ? queries[0] : queries;
+            const displayQuery = queries.join(', ');
+            const sortText = sortType === 'date' ? '최신순' : '유사도순';
+
+            closeSearchModal();
+            addSystemMessage(`'${displayQuery}' 주제로 뉴스 ${numLinks}개를 검색하고 Vector DB를 구축하는 중... (${sortText})`);
+
+            fetch('/api/build_db', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query, num_links: numLinks, use_cache: true, sort: sortType})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    addSystemMessage(data.message);
+                    loadStatus();
+                    loadCache();
+                    document.getElementById('user-input').disabled = false;
+                    document.getElementById('send-btn').disabled = false;
+                    // Vector DB 구축 후 스크롤 하단으로 이동
+                    setTimeout(() => scrollToBottom(), 100);
+                } else {
+                    addSystemMessage(`오류: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                addSystemMessage(`오류: ${err.message}`);
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('user-input');
+            const question = input.value.trim();
+
+            if (!question) return;
+
+            addUserMessage(question);
+            input.value = '';
+
+            const loading = document.getElementById('loading');
+            loading.classList.add('active');
+
+            fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({question})
+            })
+            .then(res => res.json())
+            .then(data => {
+                loading.classList.remove('active');
+                if (data.success) {
+                    addBotMessage(data.answer);
+                    document.getElementById('chat-count').textContent = data.history_count;
+                    // 응답 후 스크롤 하단으로 이동
+                    setTimeout(() => scrollToBottom(), 100);
+                } else {
+                    addSystemMessage(`오류: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                loading.classList.remove('active');
+                addSystemMessage(`오류: ${err.message}`);
+            });
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function scrollToBottom() {
+            const messages = document.getElementById('messages');
+            // 즉시 스크롤
+            messages.scrollTop = messages.scrollHeight;
+            // 확실한 스크롤을 위해 다시 한번 실행
+            requestAnimationFrame(() => {
+                messages.scrollTop = messages.scrollHeight;
+            });
+        }
+
+        function addUserMessage(text) {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'message user';
+            div.innerHTML = `<div class="message-content">${escapeHtml(text)}</div>`;
+            messages.appendChild(div);
+            // DOM 렌더링 후 스크롤
+            requestAnimationFrame(() => {
+                scrollToBottom();
+            });
+        }
+
+        function addBotMessage(text) {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'message bot';
+            div.innerHTML = `<div class="message-content">${escapeHtml(text).replace(/\n/g, '<br>')}</div>`;
+            messages.appendChild(div);
+            // DOM 렌더링 후 스크롤
+            requestAnimationFrame(() => {
+                scrollToBottom();
+            });
+        }
+
+        function addSystemMessage(text) {
+            const messages = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = 'message system';
+            div.innerHTML = `<div class="message-content">${escapeHtml(text)}</div>`;
+            messages.appendChild(div);
+            // DOM 렌더링 후 스크롤
+            requestAnimationFrame(() => {
+                scrollToBottom();
+            });
+        }
+
+        function showHistory() {
+            fetch('/api/history')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const content = document.getElementById('history-content');
+                        if (data.history.length === 0) {
+                            content.innerHTML = '<p class="history-empty">대화 히스토리가 없습니다.</p>';
+                        } else {
+                            content.innerHTML = data.history.map((h, i) => `
+                                <div class="history-item">
+                                    <strong>[${i+1}] 사용자</strong>
+                                    <p>${escapeHtml(h.question)}</p>
+                                    <strong>어시스턴트</strong>
+                                    <p>${escapeHtml(h.answer.substring(0, 150))}${h.answer.length > 150 ? '...' : ''}</p>
+                                </div>
+                            `).join('');
+                        }
+                        document.getElementById('history-modal').classList.add('active');
+                    }
+                });
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('history-modal').classList.remove('active');
+        }
+
+        function clearHistory() {
+            if (!confirm('대화 히스토리를 초기화하시겠습니까?')) return;
+
+            fetch('/api/history/clear', {method: 'POST'})
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        addSystemMessage(data.message);
+                        loadStatus();
+                        setTimeout(() => scrollToBottom(), 100);
+                    }
+                });
+        }
+
+        function clearAllCache() {
+            if (!confirm('모든 캐시를 삭제하시겠습니까?')) return;
+
+            fetch('/api/cache/clear', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    addSystemMessage(data.message);
+                    loadCache();
+                    loadStatus();
+                    setTimeout(() => scrollToBottom(), 100);
+                }
+            });
+        }
+
+        function changeLLMModel() {
+            const model = document.getElementById('llm-model').value;
+
+            fetch('/api/change_model', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model: model})
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('current-model').textContent = model;
+                    addSystemMessage(`LLM 모델이 ${model}(으)로 변경되었습니다.`);
+                    setTimeout(() => scrollToBottom(), 100);
+                } else {
+                    addSystemMessage(`오류: ${data.error}`);
+                }
+            })
+            .catch(err => {
+                addSystemMessage(`오류: ${err.message}`);
+            });
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

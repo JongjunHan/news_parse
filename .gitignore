@@ -1,0 +1,45 @@
+# 환경변수 파일 (API 키 포함)
+.env
+
+# Python 캐시
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 데이터 파일
+*.jsonl
+*.db
+*.sqlite
+
+# Chroma DB (더 이상 사용하지 않음 - 메모리 기반)
+chroma/
+chroma_*/
+
+# 로그 파일
+*.log
+
+# 임시 파일
+temp/
+tmp/
